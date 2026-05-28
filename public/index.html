@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Detectify — AI Threat Detection</title>
+
+  <!-- FIX: Fonts loaded directly in <head>, not via CSS @import -->
+  <!-- FIX: Helmet CSP updated to allow fonts.googleapis.com & fonts.gstatic.com -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
+
+  <!-- FIX: Cache-bust via query string to force fresh CSS load -->
+  <link rel="stylesheet" href="css/style.css?v=5" />
+</head>
+<body>
+
+<!-- ═══════════════════════════════ AUTH MODAL ═══════════════════════════════ -->
+<div id="auth-modal" class="auth-overlay">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <div class="auth-brand-icon"><i class="ti ti-shield-check"></i></div>
+      <div>
+        <div class="auth-brand-name">Detectify</div>
+        <div class="auth-brand-tag">AI Threat Detection</div>
+      </div>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" data-tab="login" onclick="switchAuthTab('login')">Sign In</button>
+      <button class="auth-tab" data-tab="register" onclick="switchAuthTab('register')">Register</button>
+    </div>
+    <div id="auth-error" class="auth-error"></div>
+    <div id="login-form">
+      <div class="auth-field">
+        <label>Email address</label>
+        <div class="input-wrap"><i class="ti ti-mail"></i><input type="email" id="login-email" placeholder="you@example.com" /></div>
+      </div>
+      <div class="auth-field">
+        <label>Password</label>
+        <div class="input-wrap"><i class="ti ti-lock"></i><input type="password" id="login-password" placeholder="••••••••" /></div>
+      </div>
+      <button class="auth-btn" onclick="handleLogin()"><i class="ti ti-login"></i> Sign In</button>
+      <p class="auth-switch">No account? <a onclick="switchAuthTab('register')">Create one</a></p>
+    </div>
+    <div id="register-form" style="display:none;">
+      <div class="auth-field">
+        <label>Full Name</label>
+        <div class="input-wrap"><i class="ti ti-user"></i><input type="text" id="reg-name" placeholder="Your name" /></div>
+      </div>
+      <div class="auth-field">
+        <label>Email address</label>
+        <div class="input-wrap"><i class="ti ti-mail"></i><input type="email" id="reg-email" placeholder="you@example.com" /></div>
+      </div>
+      <div class="auth-field">
+        <label>Password</label>
+        <div class="input-wrap"><i class="ti ti-lock"></i><input type="password" id="reg-password" placeholder="Min 6 characters" /></div>
+      </div>
+      <button class="auth-btn" onclick="handleRegister()"><i class="ti ti-user-plus"></i> Create Account</button>
+      <p class="auth-switch">Already registered? <a onclick="switchAuthTab('login')">Sign in</a></p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ MAIN APP ═══════════════════════════════ -->
+<div id="main-app">
+
+  <!-- NAV -->
+  <nav class="navbar">
+    <div class="nav-brand">
+      <div class="nav-brand-icon"><i class="ti ti-shield-check"></i></div>
+      <span class="nav-brand-name">Detectify</span>
+      <span class="nav-brand-version">v1</span>
+    </div>
+    <div class="nav-links">
+      <a href="#scanner"><i class="ti ti-radar"></i> Scanner</a>
+      <a href="#history"><i class="ti ti-history"></i> History</a>
+      <a href="#about"><i class="ti ti-info-circle"></i> How it works</a>
+    </div>
+    <div id="nav-user" class="nav-user"></div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-bg-grid"></div>
+    <div class="hero-glow"></div>
+    <div class="hero-content">
+      
+      <h1>Detect Threats.<br><span class="hero-accent">Stay Safe.</span></h1>
+      <p class="hero-desc">Scan any URL in real-time against 8+ threat signals — exposing phishing, malware, and scam sites before they harm you.</p>
+      <div class="hero-pills">
+        <span><i class="ti ti-check"></i> SSL Verification</span>
+        <span><i class="ti ti-check"></i> WHOIS Lookup</span>
+        <span><i class="ti ti-check"></i> AI Analysis</span>
+        <span><i class="ti ti-check"></i> Pattern Detection</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS BAR -->
+  <section class="stats-bar">
+    <div class="container">
+      <div class="stat-item">
+        <span class="stat-value" id="m-total">0</span>
+        <span class="stat-label"><i class="ti ti-database"></i> Total Scans</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item">
+        <span class="stat-value danger" id="m-threats">0</span>
+        <span class="stat-label"><i class="ti ti-alert-triangle"></i> Threats Found</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item">
+        <span class="stat-value success" id="m-safe">0</span>
+        <span class="stat-label"><i class="ti ti-shield-check"></i> Safe URLs</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item">
+        <span class="stat-value warning" id="m-suspicious">0</span>
+        <span class="stat-label"><i class="ti ti-eye"></i> Suspicious</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCANNER -->
+  <section class="scanner-section" id="scanner">
+    <div class="container">
+      <div class="scanner-card">
+        <div class="scanner-card-header">
+          <div class="scanner-icon-wrap"><i class="ti ti-radar"></i></div>
+          <div>
+            <h2>URL Scanner</h2>
+            <p class="section-desc">Paste any URL to check for phishing, malware, and other threats.</p>
+          </div>
+        </div>
+        <div class="input-group">
+          <i class="ti ti-link input-icon"></i>
+          <input type="text" id="url-input" placeholder="https://suspicious-site-example.com/login/verify" />
+          <button id="scan-btn" onclick="startScan()">
+            <i class="ti ti-radar"></i>
+            <span>Scan URL</span>
+          </button>
+        </div>
+        <div class="bulk-toggle" onclick="toggleBulk()">
+          <i class="ti ti-list-check"></i>
+          <span id="bulk-label">Bulk scan multiple URLs</span>
+          <i class="ti ti-chevron-down bulk-chevron"></i>
+        </div>
+        <div class="bulk-area" id="bulk-area">
+          <textarea id="bulk-input" placeholder="Paste one URL per line...&#10;https://site1.com&#10;https://site2.com"></textarea>
+          <button class="bulk-scan-btn" onclick="startBulkScan()"><i class="ti ti-radar"></i> Scan All URLs</button>
+        </div>
+      </div>
+
+      <div id="results-container"></div>
+    </div>
+  </section>
+
+  <!-- HISTORY -->
+  <section class="history-section" id="history">
+    <div class="container">
+      <div class="section-header">
+        <div class="section-title-group">
+          <div class="section-icon"><i class="ti ti-history"></i></div>
+          <div>
+            <h2>Scan History</h2>
+            <p class="section-meta">Your recent threat scans</p>
+          </div>
+        </div>
+        <button class="clear-btn" onclick="clearHistory()"><i class="ti ti-trash"></i> Clear All</button>
+      </div>
+      <div id="history-list">
+        <div class="empty-state">
+          <div class="empty-icon"><i class="ti ti-history"></i></div>
+          <p>No scans yet. Scan a URL above to see history here.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="about-section" id="about">
+    <div class="container">
+      <div class="about-header">
+        <div class="about-badge">Detection Engine</div>
+        <h2>How It Works</h2>
+        <p>Multi-layer threat detection across 8+ signals simultaneously.</p>
+      </div>
+      <div class="how-grid">
+        <div class="how-card">
+          <div class="how-icon blue"><i class="ti ti-brain"></i></div>
+          <h3>AI Analysis</h3>
+          <p>Claude AI reads the full URL structure and context to detect deceptive patterns humans might miss.</p>
+        </div>
+        <div class="how-card">
+          <div class="how-icon green"><i class="ti ti-lock"></i></div>
+          <h3>SSL Verification</h3>
+          <p>Checks for valid HTTPS certificates. Missing SSL is a major red flag for phishing sites.</p>
+        </div>
+        <div class="how-card">
+          <div class="how-icon orange"><i class="ti ti-typography"></i></div>
+          <h3>Typosquatting</h3>
+          <p>Detects brand impersonation like paypa1.com, g00gle.com, and amaz0n.com.</p>
+        </div>
+        <div class="how-card">
+          <div class="how-icon red"><i class="ti ti-alert-triangle"></i></div>
+          <h3>Pattern Matching</h3>
+          <p>Flags suspicious keywords like login, verify, secure, and confirm in URLs.</p>
+        </div>
+        <div class="how-card">
+          <div class="how-icon purple"><i class="ti ti-world"></i></div>
+          <h3>WHOIS Lookup</h3>
+          <p>Checks domain registration date and registrar. New domains are major red flags.</p>
+        </div>
+        <div class="how-card">
+          <div class="how-icon teal"><i class="ti ti-report"></i></div>
+          <h3>PDF Reports</h3>
+          <p>Download a professional scan report with full breakdown and risk score.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <div class="footer-brand-icon"><i class="ti ti-shield-check"></i></div>
+          <span>Detectify</span>
+        </div>
+        <div class="footer-links">
+          <a href="#scanner">Scanner</a>
+          <a href="#history">History</a>
+          <a href="#about">How it works</a>
+        </div>
+      </div>
+      <div class="footer-divider"></div>
+      <div class="footer-meta">
+        <p>Final Year Project — Cybersecurity &amp; Web Development</p>
+        <p>Built with Claude AI · For Educational Purposes Only</p>
+      </div>
+    </div>
+  </footer>
+
+</div><!-- /#main-app -->
+
+<script src="js/auth.js"></script>
+<script src="js/scanner.js"></script>
+<script src="js/whois.js"></script>
+<script src="js/api.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
