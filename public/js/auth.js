@@ -78,6 +78,11 @@ function handleLogin() {
 }
 
 function handleRegister() {
+  const regEmail = document.getElementById('reg-email').value;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail)) {
+    document.getElementById('auth-error').textContent = 'Please enter a valid email address.';
+    return;
+  }
   const regEmail = document.getElementById("reg-email").value;
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(regEmail)) { document.getElementById("auth-error").textContent = "Please enter a valid email address."; return; }
