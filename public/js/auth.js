@@ -83,9 +83,6 @@ function handleRegister() {
     document.getElementById('auth-error').textContent = 'Please enter a valid email address.';
     return;
   }
-  const regEmail = document.getElementById("reg-email").value;
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(regEmail)) { document.getElementById("auth-error").textContent = "Please enter a valid email address."; return; }
   const name     = document.getElementById('reg-name').value.trim();
   const email    = document.getElementById('reg-email').value.trim();
   const password = document.getElementById('reg-password').value;
