@@ -57,16 +57,20 @@ router.post('/scan', scanLimiter, sanitizeUrl, optionalAuth, async (req, res, ne
 
 // ---- GET /api/health ----
 router.get('/health', (req, res) => {
+  const keys = Object.keys(process.env).filter(k => 
+    k.includes('ANTHROPIC') || k.includes('GOOGLE') || k.includes('VIRUSTOTAL')
+  );
   res.json({
     status:    'ok',
     service:   'Detectify API v4',
-    version:   '4.0.1',
+    version:   '4.0.2',
     features: {
       ai:               !!process.env.ANTHROPIC_API_KEY,
       googleSafeBrowsing: !!process.env.GOOGLE_SAFE_BROWSING_KEY,
       virusTotal:       !!process.env.VIRUSTOTAL_KEY,
       database:         !!process.env.MONGODB_URI
     },
+    debug_keys: keys,
     timestamp: new Date().toISOString()
   });
 });
