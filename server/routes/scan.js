@@ -60,7 +60,7 @@ router.get('/health', (req, res) => {
   res.json({
     status:    'ok',
     service:   'Detectify API v4',
-    version:   '4.0.0',
+    version:   '4.0.1',
     features: {
       ai:               !!process.env.ANTHROPIC_API_KEY,
       googleSafeBrowsing: !!process.env.GOOGLE_SAFE_BROWSING_KEY,
