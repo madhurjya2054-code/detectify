@@ -27,7 +27,10 @@ app.use(helmet({
   },
   crossOriginEmbedderPolicy: false
 }));
-app.use(cors({ origin: config.NODE_ENV === 'production' ? false : '*', credentials: true }));
+app.use(cors({ 
+  origin: ['https://detectify-production.up.railway.app', 'http://localhost:3000'],
+  credentials: true 
+}));
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: false, limit: '10kb' }));
 app.use(rateLimit({ windowMs: config.RATE_LIMIT_WINDOW * 60 * 1000, max: config.RATE_LIMIT_MAX, message: { error: 'Too many requests.' } }));
