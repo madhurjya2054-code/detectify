@@ -42,7 +42,6 @@ async function checkGoogleSafeBrowsing(url) {
 async function checkVirusTotal(url) {
   if (!config.VIRUSTOTAL_KEY) return null;
   try {
-    // Submit URL for analysis
     const submitRes = await fetch('https://www.virustotal.com/api/v3/urls', {
       method: 'POST',
       headers: {
@@ -58,7 +57,6 @@ async function checkVirusTotal(url) {
     const analysisId = submitData.data?.id;
     if (!analysisId) return null;
 
-    // Get analysis results
     const resultRes = await fetch(`https://www.virustotal.com/api/v3/analyses/${analysisId}`, {
       headers: { 'x-apikey': config.VIRUSTOTAL_KEY },
       signal: AbortSignal.timeout(8000)
@@ -85,9 +83,9 @@ async function checkVirusTotal(url) {
   }
 }
 
-// ---- Claude AI Analysis ----
+// ---- Gemini AI Analysis ----
 async function checkClaudeAI(url, localChecks) {
-  if (!config.ANTHROPIC_API_KEY) return null;
+  if (!config.GEMINI_API_KEY) return null;
 
   const prompt = `You are a cybersecurity expert. Analyze this URL for phishing threats: "${url}"
 
@@ -114,32 +112,27 @@ Respond ONLY with valid JSON:
 }`;
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${config.GEMINI_API_KEY}`, {
       method: 'POST',
-      headers: {
-        'Content-Type':      'application/json',
-        'x-api-key':         config.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model:      'claude-sonnet-4-20250514',
-        max_tokens: 800,
-        messages:   [{ role: 'user', content: prompt }]
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: 800 }
       }),
       signal: AbortSignal.timeout(15000)
     });
 
     if (!res.ok) {
-  const errText = await res.text();
-  logger.warn(`Claude AI HTTP error ${res.status}: ${errText}`);
-  return null;
-}
-    const data  = await res.json();
-    const text  = data.content.map(i => i.text || '').join('');
+      const errText = await res.text();
+      logger.warn(`Gemini AI HTTP error ${res.status}: ${errText}`);
+      return null;
+    }
+    const data = await res.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     const clean = text.replace(/```json|```/g, '').trim();
-    return { source: 'Claude AI', ...JSON.parse(clean) };
+    return { source: 'Gemini AI', ...JSON.parse(clean) };
   } catch (err) {
-    logger.warn(`Claude AI failed: ${err.message}`);
+    logger.warn(`Gemini AI failed: ${err.message}`);
     return null;
   }
 }
@@ -149,59 +142,31 @@ function computeUnifiedScore(localScore, gsb, vt, ai) {
   let totalWeight = 0;
   let weightedSum = 0;
 
-  // Local checks — weight 20%
   weightedSum += localScore * 0.20;
   totalWeight += 0.20;
 
-  // Google Safe Browsing — weight 35% (very reliable)
   if (gsb) {
     weightedSum += gsb.score * 0.35;
     totalWeight += 0.35;
   }
 
-  // VirusTotal — weight 30%
   if (vt) {
     weightedSum += vt.score * 0.30;
     totalWeight += 0.30;
   }
 
-  // Claude AI — weight 30%
   if (ai) {
-    weightedSum += (ai.aiScore || 0) * 0.30;
+    weightedSum += ai.aiScore * 0.30;
     totalWeight += 0.30;
   }
 
   return Math.min(Math.round(weightedSum / totalWeight), 100);
 }
 
-// ---- Main Export ----
-async function analyzeUrl(url, localChecks) {
-  // Run all checks in parallel
-  const [gsb, vt, ai] = await Promise.all([
-    checkGoogleSafeBrowsing(url),
-    checkVirusTotal(url),
-    checkClaudeAI(url, localChecks)
-  ]);
-
-  const localScore   = localChecks?.localScore || 0;
-  const finalScore   = computeUnifiedScore(localScore, gsb, vt, ai);
-  const verdict      = finalScore >= 65 ? 'Phishing' : finalScore >= 30 ? 'Suspicious' : 'Safe';
-
-  return {
-    finalScore,
-    verdict,
-    domainAge:      ai?.domainAge     || 'Unknown',
-    sslStatus:      ai?.sslStatus     || (localChecks?.hasHTTPS ? 'Present' : 'Missing'),
-    threatCategory: ai?.threatCategory || (gsb?.flagged ? gsb.threats[0] : 'Unknown'),
-    analysis:       ai?.analysis      || buildFallbackAnalysis(url, localChecks, gsb, vt),
-    topRisks:       buildTopRisks(localChecks, gsb, vt, ai),
-    sources: {
-      localScore,
-      googleSafeBrowsing: gsb,
-      virusTotal:         vt,
-      claudeAI:           ai ? { aiScore: ai.aiScore, verdict: ai.verdict } : null
-    }
-  };
+function getVerdict(score) {
+  if (score >= 65) return 'Phishing';
+  if (score >= 30) return 'Suspicious';
+  return 'Safe';
 }
 
 function buildTopRisks(local, gsb, vt, ai) {
@@ -224,6 +189,36 @@ function buildFallbackAnalysis(url, local, gsb, vt) {
   if (score >= 65) return 'Multiple high-risk signals detected. This URL shows strong phishing characteristics.';
   if (score >= 30) return 'Some suspicious patterns detected. Proceed with caution.';
   return 'No major threat signals detected. Always remain cautious online.';
+}
+
+async function analyzeUrl(url, localChecks = {}) {
+  const [gsb, vt, ai] = await Promise.allSettled([
+    checkGoogleSafeBrowsing(url),
+    checkVirusTotal(url),
+    checkClaudeAI(url, localChecks)
+  ]).then(results => results.map(r => r.status === 'fulfilled' ? r.value : null));
+
+  const localScore = localChecks.localScore || 0;
+  const finalScore = computeUnifiedScore(localScore, gsb, vt, ai);
+  const verdict    = getVerdict(finalScore);
+  const topRisks   = buildTopRisks(localChecks, gsb, vt, ai);
+  const analysis   = ai?.analysis || buildFallbackAnalysis(url, localChecks, gsb, vt);
+
+  return {
+    finalScore,
+    verdict,
+    domainAge:     ai?.domainAge     || 'Unknown',
+    sslStatus:     ai?.sslStatus     || (localChecks.hasHTTPS ? 'Present' : 'Missing'),
+    threatCategory: ai?.threatCategory || (gsb?.flagged ? gsb.threats[0] : 'Unknown'),
+    analysis,
+    topRisks,
+    sources: {
+      localScore,
+      googleSafeBrowsing: gsb,
+      virusTotal:         vt,
+      claudeAI:           ai ? { aiScore: ai.aiScore, verdict: ai.verdict } : null
+    }
+  };
 }
 
 module.exports = { analyzeUrl };
