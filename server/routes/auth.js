@@ -102,7 +102,7 @@ router.post('/register', async (req, res) => {
     const pwError = validatePassword(password);
     if (pwError) return res.status(400).json({ message: pwError });
 
-    if (!mongoose.connection.readyState) {
+    if (mongoose.connection.readyState !== 1) {
       return res.status(503).json({ message: 'Database not connected. Please try again later.' });
     }
 
@@ -148,7 +148,7 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    if (!mongoose.connection.readyState) {
+    if (mongoose.connection.readyState !== 1) {
       return res.status(503).json({ message: 'Database not connected. Please try again later.' });
     }
 
