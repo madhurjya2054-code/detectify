@@ -28,7 +28,11 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false
 }));
 app.use(cors({ 
-  origin: ['https://detectify-production.up.railway.app', 'http://localhost:3000'],
+  origin: [
+    'https://detectify-production.up.railway.app',
+    'https://enthusiastic-radiance-production-d2a6.up.railway.app',
+    'http://localhost:3000'
+  ],
   credentials: true 
 }));
 app.use(express.json({ limit: '10kb' }));
