@@ -1,7 +1,7 @@
 // server/config/env.js — Environment variable validation
 require('dotenv').config({ override: false });
 
-const required = ['GEMINI_API_KEY'];
+const required = ['GROQ_API_KEY'];
 const missing  = required.filter(k => !process.env[k]);
 
 if (missing.length > 0) {
@@ -12,7 +12,7 @@ module.exports = {
   PORT:              process.env.PORT || 3000,
   NODE_ENV:          process.env.NODE_ENV || 'development',
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || null,
-  GEMINI_API_KEY:    process.env.GEMINI_API_KEY || null,
+  GROQ_API_KEY:    process.env.GROQ_API_KEY || null,
   MONGODB_URI:       process.env.MONGODB_URI || null,
   JWT_SECRET:        process.env.JWT_SECRET || 'detectify-dev-secret-change-in-prod',
   JWT_EXPIRES_IN:    process.env.JWT_EXPIRES_IN || '7d',

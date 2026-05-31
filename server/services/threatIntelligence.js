@@ -85,7 +85,7 @@ async function checkVirusTotal(url) {
 
 // ---- Gemini AI Analysis ----
 async function checkClaudeAI(url, localChecks) {
-  if (!config.GEMINI_API_KEY) return null;
+  if (!config.GROQ_API_KEY) return null;
 
   const prompt = `You are a cybersecurity expert. Analyze this URL for phishing threats: "${url}"
 
@@ -112,23 +112,27 @@ Respond ONLY with valid JSON:
 }`;
 
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${config.GEMINI_API_KEY}`, {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.GROQ_API_KEY}`
+      },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: 800 }
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 800
       }),
       signal: AbortSignal.timeout(15000)
     });
 
     if (!res.ok) {
       const errText = await res.text();
-      logger.warn(`Gemini AI HTTP error ${res.status}: ${errText}`);
+      logger.warn(`Groq AI HTTP error ${res.status}: ${errText}`);
       return null;
     }
     const data = await res.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const text = data.choices?.[0]?.message?.content || '';
     const clean = text.replace(/```json|```/g, '').trim();
     return { source: 'Gemini AI', ...JSON.parse(clean) };
   } catch (err) {
