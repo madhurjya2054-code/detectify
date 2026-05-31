@@ -129,7 +129,11 @@ Respond ONLY with valid JSON:
       signal: AbortSignal.timeout(15000)
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+  const errText = await res.text();
+  logger.warn(`Claude AI HTTP error ${res.status}: ${errText}`);
+  return null;
+}
     const data  = await res.json();
     const text  = data.content.map(i => i.text || '').join('');
     const clean = text.replace(/```json|```/g, '').trim();
