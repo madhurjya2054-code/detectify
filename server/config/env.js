@@ -1,5 +1,5 @@
 // server/config/env.js — Environment variable validation
-require('dotenv').config();
+require('dotenv').config({ override: false });
 
 const required = ['ANTHROPIC_API_KEY'];
 const missing  = required.filter(k => !process.env[k]);
