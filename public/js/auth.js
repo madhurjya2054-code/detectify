@@ -1,134 +1,155 @@
-// ================================
-//  auth.js — User Auth (localStorage)
-// ================================
+'use strict';
 
-const AUTH_KEY = 'detectify_user';
-const USERS_KEY = 'detectify_users';
+const API_BASE  = window.location.origin;
+const TOKEN_KEY = 'detectify_token';
+const USER_KEY  = 'detectify_user';
 
-function getUsers() {
-  return JSON.parse(localStorage.getItem(USERS_KEY) || '{}');
+/* ─── Token helpers ─────────────────────────────────────────────────────── */
+function decodeTokenPayload(token) {
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded  = base64.padEnd(base64.length + (4 - base64.length % 4) % 4, '=');
+    return JSON.parse(atob(padded));
+  } catch { return null; }
 }
 
-function saveUsers(users) {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+function isLoggedIn() {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) return false;
+  const payload = decodeTokenPayload(token);
+  if (!payload) { _clearSession(); return false; }
+  if (payload.exp && payload.exp * 1000 < Date.now()) { _clearSession(); return false; }
+  return true;
 }
 
 function getCurrentUser() {
-  return JSON.parse(localStorage.getItem(AUTH_KEY) || 'null');
+  if (!isLoggedIn()) return null;
+  try { return JSON.parse(localStorage.getItem(USER_KEY)); } catch { return null; }
 }
 
-function saveCurrentUser(user) {
-  localStorage.setItem(AUTH_KEY, JSON.stringify(user));
+function getAuthHeaders() {
+  const token = localStorage.getItem(TOKEN_KEY);
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-function registerUser(name, email, password) {
-  const users = getUsers();
-  if (users[email]) return { success: false, message: 'Email already registered.' };
-  users[email] = { name, email, password: btoa(password), joined: new Date().toISOString() };
-  saveUsers(users);
-  saveCurrentUser({ name, email });
-  return { success: true };
+function _saveSession(data) {
+  localStorage.setItem(TOKEN_KEY, data.token);
+  localStorage.setItem(USER_KEY, JSON.stringify(data.user));
 }
 
-function loginUser(email, password) {
-  const users = getUsers();
-  const user = users[email];
-  if (!user) return { success: false, message: 'Email not found.' };
-  if (user.password !== btoa(password)) return { success: false, message: 'Incorrect password.' };
-  saveCurrentUser({ name: user.name, email });
-  return { success: true };
+function _clearSession() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
 }
 
-function logoutUser() {
-  localStorage.removeItem(AUTH_KEY);
-  showAuthModal();
-  document.getElementById('main-app').style.display = 'none';
+/* ─── UI helpers ─────────────────────────────────────────────────────────── */
+function showAuthError(msg) {
+  const el = document.getElementById('auth-error');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = 'block';
 }
 
-// ---- Show/hide auth modal ----
-function showAuthModal(tab = 'login') {
-  document.getElementById('auth-modal').style.display = 'flex';
-  switchAuthTab(tab);
-}
-
-function hideAuthModal() {
-  document.getElementById('auth-modal').style.display = 'none';
-  document.getElementById('main-app').style.display = 'block';
+function clearAuthError() {
+  const el = document.getElementById('auth-error');
+  if (!el) return;
+  el.textContent = '';
+  el.style.display = 'none';
 }
 
 function switchAuthTab(tab) {
-  document.getElementById('login-form').style.display  = tab === 'login'    ? 'block' : 'none';
-  document.getElementById('register-form').style.display = tab === 'register' ? 'block' : 'none';
-  document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
-  document.querySelector(`.auth-tab[data-tab="${tab}"]`).classList.add('active');
-  document.getElementById('auth-error').textContent = '';
-}
-
-function handleLogin() {
-  const email    = document.getElementById('login-email').value.trim();
-  const password = document.getElementById('login-password').value;
-  if (!email || !password) { showAuthError('Please fill in all fields.'); return; }
-  const result = loginUser(email, password);
-  if (result.success) {
-    hideAuthModal();
-    updateNavUser();
-  } else {
-    showAuthError(result.message);
-  }
-}
-
-function handleRegister() {
-  const regEmail = document.getElementById('reg-email').value;
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(regEmail)) {
-    document.getElementById('auth-error').textContent = 'Please enter a valid email address.';
-    return;
-  }
-  const name     = document.getElementById('reg-name').value.trim();
-  const email    = document.getElementById('reg-email').value.trim();
-  const password = document.getElementById('reg-password').value;
-  if (!name || !email || !password) { showAuthError('Please fill in all fields.'); return; }
-  if (password.length < 6) { showAuthError('Password must be at least 6 characters.'); return; }
-  const result = registerUser(name, email, password);
-  if (result.success) {
-    hideAuthModal();
-    updateNavUser();
-  } else {
-    showAuthError(result.message);
-  }
-}
-
-function showAuthError(msg) {
-  document.getElementById('auth-error').textContent = msg;
-}
-
-function updateNavUser() {
-  const user = getCurrentUser();
-  const el   = document.getElementById('nav-user');
-  if (!el) return;
-  if (user) {
-    el.innerHTML = `
-      <span class="nav-avatar">${user.name.charAt(0).toUpperCase()}</span>
-      <span class="nav-username">${user.name}</span>
-      <button class="nav-logout" onclick="logoutUser()"><i class="ti ti-logout"></i> Logout</button>`;
-  }
-}
-
-// ---- On page load ----
-document.addEventListener('DOMContentLoaded', () => {
-  const user = getCurrentUser();
-  if (!user) {
-    showAuthModal('login');
-    document.getElementById('main-app').style.display = 'none';
-  } else {
-    hideAuthModal();
-    updateNavUser();
-  }
-
-  // Enter key support
-  ['login-password','reg-password'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('keydown', e => {
-      if (e.key === 'Enter') id.startsWith('login') ? handleLogin() : handleRegister();
-    });
+  document.getElementById('login-form').style.display    = tab === 'login'    ? '' : 'none';
+  document.getElementById('register-form').style.display = tab === 'register' ? '' : 'none';
+  document.querySelectorAll('.auth-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tab);
   });
-});
+  clearAuthError();
+}
+
+/* ─── Auth handlers (called by onclick in HTML) ──────────────────────────── */
+async function handleLogin() {
+  clearAuthError();
+  const email    = document.getElementById('login-email')?.value.trim()    || '';
+  const password = document.getElementById('login-password')?.value        || '';
+  const btn      = document.querySelector('#login-form .auth-btn');
+
+  if (!email || !password) { showAuthError('Email and password are required.'); return; }
+
+  btn && (btn.disabled = true, btn.innerHTML = '<i class="ti ti-loader"></i> Signing in…');
+  try {
+    const res  = await fetch(`${API_BASE}/api/auth/login`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Login failed.');
+    _saveSession(data);
+    applyAuthState();
+  } catch (err) {
+    showAuthError(err.message);
+  } finally {
+    btn && (btn.disabled = false, btn.innerHTML = '<i class="ti ti-login"></i> Sign In');
+  }
+}
+
+async function handleRegister() {
+  clearAuthError();
+  const name     = document.getElementById('reg-name')?.value.trim()     || '';
+  const email    = document.getElementById('reg-email')?.value.trim()    || '';
+  const password = document.getElementById('reg-password')?.value        || '';
+  const btn      = document.querySelector('#register-form .auth-btn');
+
+  if (!name || !email || !password) { showAuthError('All fields are required.'); return; }
+
+  btn && (btn.disabled = true, btn.innerHTML = '<i class="ti ti-loader"></i> Creating account…');
+  try {
+    const res  = await fetch(`${API_BASE}/api/auth/register`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ name, email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Registration failed.');
+    _saveSession(data);
+    applyAuthState();
+  } catch (err) {
+    showAuthError(err.message);
+  } finally {
+    btn && (btn.disabled = false, btn.innerHTML = '<i class="ti ti-user-plus"></i> Create Account');
+  }
+}
+
+function logout() {
+  _clearSession();
+  applyAuthState();
+}
+
+/* ─── Page state ─────────────────────────────────────────────────────────── */
+function applyAuthState() {
+  const authModal = document.getElementById('auth-modal');
+  const mainApp   = document.getElementById('main-app');
+  const navUser   = document.getElementById('nav-user');
+
+  if (isLoggedIn()) {
+    authModal && (authModal.style.display = 'none');
+    mainApp  && (mainApp.style.display   = '');
+    const user = getCurrentUser();
+    if (navUser && user) {
+      navUser.innerHTML = `
+        <span class="nav-username">${user.name || user.email}</span>
+        <button class="nav-logout-btn" onclick="logout()">
+          <i class="ti ti-logout"></i> Logout
+        </button>`;
+    }
+  } else {
+    authModal && (authModal.style.display = '');
+    mainApp  && (mainApp.style.display   = 'none');
+  }
+}
+
+/* ─── Bootstrap ──────────────────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', applyAuthState);
+
+/* ─── Public API ─────────────────────────────────────────────────────────── */
+window.DetectifyAuth = { handleLogin, handleRegister, logout, getCurrentUser, isLoggedIn, getAuthHeaders };
