@@ -146,22 +146,30 @@ function computeUnifiedScore(localScore, gsb, vt, ai) {
   let totalWeight = 0;
   let weightedSum = 0;
 
-  weightedSum += localScore * 0.20;
-  totalWeight += 0.20;
+  // If GSB or VT flagged it — heavily penalize
+  if (gsb?.flagged) return Math.min(Math.round(localScore * 0.3 + 70), 100);
+  if (vt?.malicious > 2) return Math.min(Math.round(localScore * 0.2 + 60 + (vt.malicious / vt.total) * 40), 100);
+
+  // Local score weight — increases when external APIs return nothing
+  const hasExternalData = (gsb !== null) || (vt !== null && vt.total > 5);
+  const localWeight = hasExternalData ? 0.30 : 0.60;
+
+  weightedSum += localScore * localWeight;
+  totalWeight += localWeight;
 
   if (gsb) {
     weightedSum += gsb.score * 0.35;
     totalWeight += 0.35;
   }
 
-  if (vt) {
+  if (vt && vt.total > 5) {
     weightedSum += vt.score * 0.30;
     totalWeight += 0.30;
   }
 
   if (ai) {
-    weightedSum += ai.aiScore * 0.30;
-    totalWeight += 0.30;
+    weightedSum += ai.aiScore * 0.35;
+    totalWeight += 0.35;
   }
 
   return Math.min(Math.round(weightedSum / totalWeight), 100);
