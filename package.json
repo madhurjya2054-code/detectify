@@ -19,6 +19,7 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.4.1",
+    "whois-json": "^2.0.4",
     "winston": "^3.13.0",
     "xss": "^1.0.15"
   },

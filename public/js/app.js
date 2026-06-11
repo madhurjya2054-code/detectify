@@ -99,7 +99,7 @@ function renderResult(card, url, local, ai) {
     ? `<div class="risk-tags">${ai.topRisks.map(r => `<span class="risk-tag">${r}</span>`).join('')}</div>`
     : '';
 
-  const whoisHTML = renderWHOIS(url);
+  renderWHOIS(url).then(whoisHTML => {
 
   card.innerHTML = `
     <div class="result-header">
@@ -184,6 +184,7 @@ function renderResult(card, url, local, ai) {
     const fill = card.querySelector('.gauge-fill');
     if (fill) fill.style.width = fill.dataset.target + '%';
   });
+  }); // close renderWHOIS.then()
 }
 
 // ---- COPY RESULT ----

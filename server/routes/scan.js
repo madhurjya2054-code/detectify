@@ -95,4 +95,50 @@ router.get('/stats', optionalAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+
+// ---- GET /api/whois ----
+router.get('/whois', async (req, res) => {
+  const { domain } = req.query;
+  if (!domain) return res.status(400).json({ error: 'Domain required' });
+  try {
+    const whois = require('whois-json');
+    const data = await whois(domain);
+    const created = data.creationDate || data.created || data.registrationDate || null;
+    const expires = data.expirationDate || data.expires || data.registrarRegistrationExpirationDate || null;
+    const registrar = data.registrar || data.sponsoringRegistrar || 'Unknown';
+    const country = data.registrantCountry || data.country || 'Unknown';
+    const status = Array.isArray(data.domainStatus) ? data.domainStatus[0] : (data.domainStatus || 'ok');
+
+    let age = 'Unknown';
+    let isNew = false;
+    if (created) {
+      const createdDate = new Date(created);
+      const now = new Date();
+      const diffMs = now - createdDate;
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      if (diffDays < 365) {
+        age = diffDays < 30 ? diffDays + ' days — ⚠️ Very new' : Math.floor(diffDays/30) + ' months';
+        isNew = diffDays < 180;
+      } else {
+        const years = Math.floor(diffDays / 365);
+        age = years + ' year' + (years > 1 ? 's' : '');
+      }
+    }
+
+    res.json({
+      domain,
+      registrar,
+      created: created ? new Date(created).toISOString().split('T')[0] : 'Unknown',
+      expires: expires ? new Date(expires).toISOString().split('T')[0] : 'Unknown',
+      country,
+      status: typeof status === 'string' ? status.split(' ')[0] : 'ok',
+      age,
+      isNew,
+      simulated: false
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'WHOIS lookup failed', message: err.message });
+  }
+});
+
 module.exports = router;
