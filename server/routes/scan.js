@@ -101,21 +101,42 @@ router.get('/whois', async (req, res) => {
   const { domain } = req.query;
   if (!domain) return res.status(400).json({ error: 'Domain required' });
   try {
-    const whois = require('whois-json');
-    const data = await whois(domain);
-    const created = data.creationDate || data.created || data.registrationDate || null;
-    const expires = data.expirationDate || data.expires || data.registrarRegistrationExpirationDate || null;
-    const registrar = data.registrar || data.sponsoringRegistrar || 'Unknown';
-    const country = data.registrantCountry || data.country || 'Unknown';
-    const status = Array.isArray(data.domainStatus) ? data.domainStatus[0] : (data.domainStatus || 'ok');
+    const response = await fetch(
+      `https://rdap.org/domain/${encodeURIComponent(domain)}`,
+      { signal: AbortSignal.timeout(8000) }
+    );
+    if (!response.ok) throw new Error('RDAP lookup failed');
+    const data = await response.json();
+
+    const events = data.events || [];
+    const registered = events.find(e => e.eventAction === 'registration');
+    const expiration = events.find(e => e.eventAction === 'expiration');
+
+    const created = registered?.eventDate || null;
+    const expires = expiration?.eventDate || null;
+
+    const entities = data.entities || [];
+    let registrar = 'Unknown';
+    let country = 'Unknown';
+
+    for (const entity of entities) {
+      const roles = entity.roles || [];
+      if (roles.includes('registrar')) {
+        registrar = entity.vcardArray?.[1]?.find(v => v[0] === 'fn')?.[3] || 
+                    entity.publicIds?.[0]?.identifier || 'Unknown';
+      }
+      if (roles.includes('registrant')) {
+        const vcard = entity.vcardArray?.[1] || [];
+        const adr = vcard.find(v => v[0] === 'adr');
+        if (adr) country = adr[1]?.country || adr[3]?.[6] || 'Unknown';
+      }
+    }
 
     let age = 'Unknown';
     let isNew = false;
     if (created) {
       const createdDate = new Date(created);
-      const now = new Date();
-      const diffMs = now - createdDate;
-      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      const diffDays = Math.floor((Date.now() - createdDate) / (1000 * 60 * 60 * 24));
       if (diffDays < 365) {
         age = diffDays < 30 ? diffDays + ' days — ⚠️ Very new' : Math.floor(diffDays/30) + ' months';
         isNew = diffDays < 180;
@@ -125,13 +146,15 @@ router.get('/whois', async (req, res) => {
       }
     }
 
+    const status = Array.isArray(data.status) ? data.status[0] : 'ok';
+
     res.json({
       domain,
       registrar,
       created: created ? new Date(created).toISOString().split('T')[0] : 'Unknown',
       expires: expires ? new Date(expires).toISOString().split('T')[0] : 'Unknown',
       country,
-      status: typeof status === 'string' ? status.split(' ')[0] : 'ok',
+      status,
       age,
       isNew,
       simulated: false
